@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=run_inference_xgb.job
-#SBATCH --output=xgb_inference/logs/run_inference_xgb_%A_%a.out
-#SBATCH --error=xgb_inference/logs/run_inference_xgb_%A_%a.err
+#SBATCH --output=/expanse/lustre/projects/umn141/dwarshofsky/devlop_scope/scope-ml/hpc_files/xgb_inference/logs/run_inference_xgb_%A_%a.out
+#SBATCH --error=/expanse/lustre/projects/umn141/dwarshofsky/devlop_scope/scope-ml/hpc_files/xgb_inference/logs/run_inference_xgb_%A_%a.err
 #SBATCH -p shared
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
@@ -12,5 +12,5 @@
 #SBATCH --mail-user=warsh029@umn.edu
 #SBATCH -A umn131
 module purge
-source activate scope-env
-./get_all_preds_xgb_DR16.sh $FID
+source activate scope-dev
+./hpc_files/get_all_preds_xgb_DR16.sh $FID

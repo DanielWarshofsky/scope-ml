@@ -158,6 +158,7 @@ def get_lightcurves_via_ids(
     get_ids_coords_only=False,
     get_basic_data=False,
     max_timestamp_hjd=None,
+    min_timestamp_hjd=0.0,
 ):
 
     if max_timestamp_hjd is None:
@@ -201,7 +202,7 @@ def get_lightcurves_via_ids(
     while True:
         Nqueries = int(np.ceil(Nsources / limit_per_query))
 
-        time_filter = {"$gt": 0.0}
+        time_filter = {"$gt": min_timestamp_hjd}
         if max_timestamp_hjd is not None:
             time_filter["$lte"] = max_timestamp_hjd
 
@@ -245,6 +246,55 @@ def get_lightcurves_via_ids(
         if (itr * limit_per_query) % limit_per_query == 0:
             print(itr * limit_per_query, "done")
 
+    return lcs
+
+
+def get_alert_lcs(
+    kowalski_instances, fields, start_jd, end_jd, filt, limit=100000, min_obs=20
+):
+    # need to seperate by filter
+    filter = {
+        "candidate.field": {'$in': fields},
+        "candidate.jd": {"$gte": start_jd, "$lte": end_jd},
+        "candidate.fid": {"$eq": filt},
+    }
+    projection = {
+        'objectId': 1,
+        'candidate.jd': 1,
+        'candidate.magpsf': 1,
+        'candidate.sigmapsf': 1,
+    }
+    q = {
+        "query_type": "find",
+        "query": {
+            "catalog": 'ZTF_alerts',
+            "filter": filter,
+            "projection": projection,
+        },
+        "kwargs": {"limit": limit, "skip": 0},
+    }
+    response = kowalski_instances.query(q)
+    lcs = {}
+    for name in response.keys():
+        if len(response[name]) > 0:
+            r = response[name]
+            if r.get("status") == "success":
+                light_curve = r.get("data")
+                for point in light_curve:
+                    add_point = np.array(
+                        [
+                            point.get('candidate')['jd'],
+                            point.get('candidate')['magpsf'],
+                            point.get('candidate')['sigmapsf'],
+                        ]
+                    )
+                    if point.get('objectId') not in lcs.keys():  # first time
+                        lcs[point.get('objectId')] = [add_point]
+                    elif point.get('objectId') in lcs.keys():
+                        lcs[point.get('objectId')].append(add_point)
+    for key in list(lcs.keys()):
+        if len(lcs[key]) < min_obs:
+            lcs.pop(key)
     return lcs
 
 

@@ -458,6 +458,7 @@ def generate_features(
     max_freq: float = 48.0,
     fg_dataset: str = None,
     max_timestamp_hjd: float = None,
+    min_timestamp_hjd: float = 0.0,
 ):
     """
     Generate features for ZTF light curves
@@ -530,6 +531,7 @@ def generate_features(
 
         print(f'Running field {field}, CCD {ccd}, Quadrant {quad}...')
         print('Getting IDs...')
+        t_get_ids = time.time()
         _, lst = get_ids_loop(
             get_field_ids,
             catalog=source_catalog,
@@ -543,9 +545,10 @@ def generate_features(
             get_coords=True,
             stop_early=stop_early,
         )
-
+        print(f'Time to get IDs: {time.time()-t_get_ids}')
         if not skipCloseSources:
             # Each index of lst corresponds to a different ccd/quad combo
+            t_drop_close = time.time()
             feature_gen_source_dict = drop_close_bright_stars(
                 lst[0],
                 catalog=gaia_catalog,
@@ -554,6 +557,7 @@ def generate_features(
                 limit=limit,
                 Ncore=Ncore,
             )
+            print(f'Time to drop close stars: {time.time()-t_drop_close}')
         else:
             feature_gen_source_dict = lst[0]
     else:
@@ -636,6 +640,7 @@ def generate_features(
             print(f'Loaded ZTF IDs for {len(lst[0])} sources.')
 
             # Each index of lst corresponds to a different ccd/quad combo
+            t_drop_close
             feature_gen_source_dict = drop_close_bright_stars(
                 lst[0],
                 catalog=gaia_catalog,
@@ -647,6 +652,7 @@ def generate_features(
                 save=not doNotSave,
                 save_directory=dirname,
             )
+            print(f'Time to drop close stars: {time.time()-t_drop_close}')
 
         else:
             feature_gen_source_dict = {
@@ -660,7 +666,7 @@ def generate_features(
         lc_limit = int(np.ceil(len(feature_gen_source_dict) / Ncore))
 
     feature_gen_ids = [x for x in feature_gen_source_dict.keys()]
-
+    t_get_lc = time.time()
     lcs = get_lightcurves_via_ids(
         kowalski_instances=kowalski_instances,
         ids=feature_gen_ids,
@@ -669,14 +675,45 @@ def generate_features(
         Ncore=Ncore,
         get_basic_data=True,
         max_timestamp_hjd=max_timestamp_hjd,
+        min_timestamp_hjd=min_timestamp_hjd,
     )
-
+    print(f'Time to get lcs: {time.time()-t_get_lc}')
     # Remake feature_gen_source_dict if some light curves are missing
     lc_ids = [lc['_id'] for lc in lcs]
     if len(lc_ids) != len(feature_gen_ids):
         feature_gen_source_dict = {x: feature_gen_source_dict[x] for x in lc_ids}
 
     feature_dict = feature_gen_source_dict.copy()
+
+    # Get ZTF alert stats
+    t_alert = time.time()
+    alert_stats_dct = alertstats.get_ztf_alert_stats(
+        feature_dict,
+        kowalski_instances,
+        catalog=alerts_catalog,
+        radius_arcsec=xmatch_radius_arcsec,
+        limit=limit,
+        Ncore=Ncore,
+    )
+    print(f'Time to get alerts: {time.time()-t_alert}')
+    for _id in feature_dict.keys():
+        feature_dict[_id]['n_ztf_alerts'] = alert_stats_dct[_id]['n_ztf_alerts']
+        feature_dict[_id]['mean_ztf_alert_braai'] = alert_stats_dct[_id][
+            'mean_ztf_alert_braai'
+        ]
+
+    # Add crossmatches to Gaia, AllWISE and PS1 (by default, see config.yaml)
+    t_xmatch = time.time()
+    feature_dict = external_xmatch.xmatch(
+        feature_dict,
+        kowalski_instances,
+        ext_catalog_info,
+        radius_arcsec=xmatch_radius_arcsec,
+        limit=limit,
+        Ncore=Ncore,
+    )
+    print(f'Time to xmatch: {time.time()-t_xmatch}')
+
     print('Analyzing lightcuves and computing basic features...')
     # Start by dropping flagged points
     count = 0
@@ -1069,30 +1106,6 @@ def generate_features(
             dmdtvals = [x for x in dmdtline.values()][0]
             feature_dict[_id]['dmdt'] = dmdtvals.tolist()
 
-        # Get ZTF alert stats
-        alert_stats_dct = alertstats.get_ztf_alert_stats(
-            feature_dict,
-            kowalski_instances,
-            catalog=alerts_catalog,
-            radius_arcsec=xmatch_radius_arcsec,
-            limit=limit,
-            Ncore=Ncore,
-        )
-        for _id in feature_dict.keys():
-            feature_dict[_id]['n_ztf_alerts'] = alert_stats_dct[_id]['n_ztf_alerts']
-            feature_dict[_id]['mean_ztf_alert_braai'] = alert_stats_dct[_id][
-                'mean_ztf_alert_braai'
-            ]
-
-        # Add crossmatches to Gaia, AllWISE and PS1 (by default, see config.yaml)
-        feature_dict = external_xmatch.xmatch(
-            feature_dict,
-            kowalski_instances,
-            ext_catalog_info,
-            radius_arcsec=xmatch_radius_arcsec,
-            limit=limit,
-            Ncore=Ncore,
-        )
         feature_df = pd.DataFrame.from_dict(feature_dict, orient='index')
 
         # Rename index column to '_id' and reset index
@@ -1368,6 +1381,11 @@ def get_parser(**kwargs):
         "--max-timestamp-hjd",
         type=float,
         help="maximum timestamp for queried light curves (HJD)",
+    )
+    parser.add_argument(
+        "--min-timestamp-hjd",
+        type=float,
+        help="min-imum timestamp for queried light curves (HJD)",
     )
     return parser
 

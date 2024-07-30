@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=combine_preds.job
-#SBATCH --output=combine_preds/logs/combine_preds_%A_%a.out
-#SBATCH --error=combine_preds/logs/combine_preds_%A_%a.err
+#SBATCH --output=hpc_files/combine_preds/logs/combine_preds_%A_%a.out
+#SBATCH --error=hpc_files/combine_preds/logs/combine_preds_%A_%a.err
 #SBATCH -p shared
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
@@ -12,4 +12,4 @@
 #SBATCH --mail-user=warsh029@umn.edu
 module purge
 source activate scope-env
-combine-preds --use-config-fields --write-csv
+combine-preds --use-config-fields --write-csv --combined-preds-dirname preds_dnn_xgb --xgb-directory preds_xgb --dnn-directory preds_dnn --path-to-preds hpc_files

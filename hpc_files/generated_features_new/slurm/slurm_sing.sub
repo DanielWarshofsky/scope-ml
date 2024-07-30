@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=generate_features_sing.job
-#SBATCH --output=generated_features_new/logs/generate_features_sing_%A_%a.out
-#SBATCH --error=generated_features_new/logs/generate_features_sing_%A_%a.err
+#SBATCH --output=hpc_files/generated_features_new/logs/generate_features_sing_%A_%a.out
+#SBATCH --error=hpc_files/generated_features_new/logs/generate_features_sing_%A_%a.err
 #SBATCH -p gpu-shared
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 9
@@ -14,5 +14,5 @@
 module purge
 module add gpu/0.15.4
 module add cuda
-source activate scope-env
-generate-features --source-catalog ZTF_sources_20240117 --alerts-catalog ZTF_alerts --gaia-catalog Gaia_EDR3 --bright-star-query-radius-arcsec 300.0 --xmatch-radius-arcsec 2.0 --query-size-limit 1000 --period-batch-size 1000 --samples-per-peak 10 --Ncore 9 --min-n-lc-points 50 --min-cadence-minutes 30.0 --dirname generated_features_sing --filename gen_features --top-n-periods 50 --max-freq 48.0 --field 881 --ccd 2 --quad 1 --doGPU --doRemoveTerrestrial --doCesium
+source activate scope-dev
+generate-features --source-catalog ZTF_sources_20240117 --alerts-catalog ZTF_alerts --gaia-catalog Gaia_EDR3 --bright-star-query-radius-arcsec 300.0 --xmatch-radius-arcsec 2.0 --query-size-limit 1000 --period-batch-size 1000 --samples-per-peak 10 --Ncore 9 --min-n-lc-points 50 --min-cadence-minutes 30.0 --dirname generated_features_sing --filename gen_features --top-n-periods 50 --max-freq 48.0 --field 881 --ccd 3 --quad 1 --doGPU --doRemoveTerrestrial --doCesium --max-timestamp-hjd 2459951.5 --min-timestamp-hjd 0.0

@@ -128,7 +128,12 @@ def xmatch(
                         decs += [dec_match]
 
                     match_SC = SkyCoord(
-                        ra_match + 180.0, dec_match, unit=['deg', 'deg']
+                        ras + 180.0,
+                        decs,
+                        unit=[
+                            'deg',
+                            'deg',
+                        ],  # previously using *_match vars. Thx zach for finding bug
                     )
                     seps_argmin = np.argmin(input_SC.separation(match_SC))
                     ext_values = ext_values[seps_argmin]

@@ -396,6 +396,8 @@ def main():
     top_n_periods = args.top_n_periods
     max_freq = args.max_freq
     max_timestamp_hjd = args.max_timestamp_hjd
+    # min_timestamp_hjd = args.min_timestamp_hjd
+    log_dir = args.log_dir
 
     if doCPU:
         cpu_gpu_flag = "--doCPU"
@@ -567,7 +569,7 @@ def main():
     if not args.doSubmitLoop:
         if args.runParallel:
             fid.write(
-                'generate-features-job-submission --dirname %s --filename %s --doSubmit --runParallel --max-instances %s --wait-time-minutes %s --user %s --submit-interval-minutes %s\n'
+                'generate-features-job-submission --dirname %s --filename %s --doSubmit --runParallel --max-instances %s --wait-time-minutes %s --user %s --submit-interval-minutes %s --log_dir %s\n'
                 % (
                     dirpath,
                     filename,
@@ -575,11 +577,12 @@ def main():
                     args.wait_time_minutes,
                     args.user,
                     args.submit_interval_minutes,
+                    log_dir,
                 )
             )
         else:
             fid.write(
-                'generate-features-job-submission --dirname %s --filename %s --doSubmit --max-instances %s --wait-time-minutes %s --user %s --submit-interval-minutes %s\n'
+                'generate-features-job-submission --dirname %s --filename %s --doSubmit --max-instances %s --wait-time-minutes %s --user %s --submit-interval-minutes %s --log_dir %s\n'
                 % (
                     dirpath,
                     filename,
@@ -587,6 +590,7 @@ def main():
                     args.wait_time_minutes,
                     args.user,
                     args.submit_interval_minutes,
+                    log_dir,
                 )
             )
     else:

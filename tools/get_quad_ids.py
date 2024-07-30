@@ -417,6 +417,121 @@ def get_field_ids(
         return ids
 
 
+def get_field_obj_ids(
+    catalog='ZTF_alerts',
+    kowalski_instances=kowalski_instances,
+    field=301,
+    ccd=4,
+    quad=3,
+    minobs=20,
+    skip=0,
+    limit=10000,
+    save=False,
+    output_dir=None,
+    get_coords=False,
+):
+    '''Get Obj_Id for a specific quad of a CCD for a particular ZTF field in the ZTF_alerts catalog.
+    Parameters
+    ----------
+    catalog : str
+        Catalog containing ids, CCD, quad, and light curves
+    kowalski_instances:
+        Authenticated instances of kowalski. Defaults to config-specified info.
+    field : int
+        ZTF field number
+    ccd : int
+        CCD number [1,16] (not checked)
+    quad : int
+        CCD quad number [1,4] (not checked)
+    minobs : int
+        Minimum points in the light curve for the object to be selected
+    skip : int
+        How many of the selected rows to skip
+        Along with limit this can be used to loop over a quad in chunks
+    limit : int
+        How many of the selected rows to return. Default is 10000
+    get_coords: bool
+            If True, return dictionary linking ids and object geojson coordinates
+    Returns
+    -------
+    ids : list
+        A list of ids
+
+    USAGE: data = get_field_ids('ZTF_sources_20210401',field=301,ccd=2,quad=3,\
+        minobs=5,skip=0,limit=20)
+    '''
+
+    if limit == 0:
+        limit = 10000000000
+
+    filter = {
+        "field": {"$eq": field},
+        "ccd": {"$eq": ccd},
+        "quad": {"$eq": quad},
+        "n_obs": {"$geq": minobs},
+    }
+
+    projection = {"Obj_id": 1}
+    if get_coords:
+        projection['coordinates.radec_geojson.coordinates'] = 1
+
+    q = {
+        'query_type': 'find',
+        'query': {
+            'catalog': catalog,
+            'filter': filter,
+            "projection": projection,
+        },
+        "kwargs": {"limit": limit, "skip": skip},
+    }
+
+    responses = kowalski_instances.query(q)
+
+    for name in responses.keys():
+        if len(responses[name]) > 0:
+            response = responses[name]
+            if response.get("status", "error") == "success":
+                data = response.get("data")
+                if data is not None:
+                    ids = [data[i]['Obj_id'] for i in range(len(data))]
+
+    if get_coords:
+        coords = [data[i]['coordinates'] for i in range(len(data))]
+
+    if save:
+        print(f"Found {len(ids)} results to save.")
+
+        pd.DataFrame(ids).to_csv(
+            os.path.join(
+                output_dir,
+                "data_ccd_"
+                + str(ccd)
+                + "_quad_"
+                + str(quad)
+                + "_field_"
+                + str(field)
+                + ".csv",
+            ),
+            index=False,
+            header=False,
+        )
+
+        hf = h5py.File(
+            output_dir + 'data_ccd_' + str(ccd).zfill(2) + '_quad_' + str(quad) + '.h5',
+            'w',
+        )
+        hf.create_dataset(
+            "dataset_ccd_" + str(ccd) + "_quad_" + str(quad) + "_field_" + str(field),
+            data=ids,
+        )
+        hf.close()
+
+    if get_coords:
+        return dict(zip(ids, coords))
+    else:
+        return ids
+
+
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -77,9 +77,13 @@ def main():
     args, _ = parser.parse_known_args()
 
     filetype = args.filetype
+    print(f'filetype: {filetype}')
     dirname = args.dirname
+    print(f'dirname: {dirname}')
 
     slurmDir = str(BASE_DIR / dirname)
+
+    print(f'slurmDir: {slurmDir}')
 
     fields = config['inference'].get('fields_to_run')
     fields_to_exclude = config.get('fields_to_exclude')
@@ -91,8 +95,9 @@ def main():
     algorithm = args.algorithm
 
     subDir = os.path.join(slurmDir, filetype)
+    print(f'subDir: {subDir}')
     subfile = os.path.join(subDir, '%s.sub' % filetype)
-
+    print(f'subfile: {subfile}')
     fields_remaining = filter_completed(
         fields,
         algorithm,
