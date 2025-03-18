@@ -24,6 +24,7 @@ kowalski:
   # (JD corrected for Earth/Sun light travel time)
   # By default, this is set at the end of DR16 (2459951.5)
   max_timestamp_hjd: 2459951.5
+  min_timestamp_hjd: 0.0
 fritz:
   token:
   protocol: https

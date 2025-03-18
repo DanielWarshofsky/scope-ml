@@ -129,3 +129,23 @@ dmypy.json
 .pyre/
 
 config.yaml
+
+#Logs
+*.err
+*.out
+
+#feature and classification data
+hpc_files/generated_features_new/field_*
+hpc_files/models_dnn/trained_dnn_models/
+hpc_files/models_xgb/trained_xgb_models/
+hpc_files/preds_dnn/
+hpc_files/preds_dnn_xgb/
+hpc_files/preds_xgb/
+ids/
+hpc_files/fritzDownload/*
+
+#misc
+core.*
+periodfind
+hpc_files/models_xgb/README
+hpc_files/generated_features_new/meta.json

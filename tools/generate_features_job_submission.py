@@ -94,6 +94,13 @@ def get_parser():
         help="Time to wait between job submissions (minutes)",
     )
 
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        default='generated_features_new/logs',
+        help="Path to log files",
+    )
+
     return parser
 
 
@@ -109,7 +116,7 @@ def filter_running(user):
             running_jobs = [x.strip().split() for x in running_jobs[1:]]
             for job in running_jobs:
                 job_name = job[2]
-                if "ztf_fg" in job_name:
+                if "field" in job_name:
                     running_jobs_count += 1
     else:
         print("Error executing the command. Exit code:", result.returncode)
@@ -190,6 +197,7 @@ def run_job(
     filename,
     qsubfile,
     jobline,
+    log_dir,
     runParallel=False,
     submit_interval_minutes=1.0,
 ):
@@ -210,7 +218,8 @@ def run_job(
 
     if not os.path.isfile(filepath):
         if runParallel:
-            sbatchstr = f"sbatch --export=QID={row['job_number']} {qsubfile}"
+            # added usefull job names
+            sbatchstr = f"sbatch --job-name=field_{field}_ccd_{ccd}_quad_{quadrant} --error={log_dir}/field_{field}_ccd_{ccd}_quad_{quadrant}_%A_%a.err --output={log_dir}/field_{field}_ccd_{ccd}_quad_{quadrant}_%A_%a.out --export=QID={row['job_number']} {qsubfile}"
             print(sbatchstr)
             os.system(sbatchstr)
         else:
@@ -232,6 +241,7 @@ def main():
     filename = args.filename
     filetype = args.filetype
     dirname = args.dirname
+    log_dir = args.log_dir
     resultsDir = str(BASE_DIR / dirname)
     reset_running = args.reset_running
 
@@ -290,6 +300,7 @@ def main():
                         filename,
                         qsubfile,
                         jobline,
+                        log_dir,
                         runParallel=args.runParallel,
                         submit_interval_minutes=args.submit_interval_minutes,
                     )

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=run_inference_dnn_submit.job
-#SBATCH --output=dnn_inference/logs/run_inference_dnn_submit_%A_%a.out
-#SBATCH --error=dnn_inference/logs/run_inference_dnn_submit_%A_%a.err
+#SBATCH --output=/expanse/lustre/projects/umn141/dwarshofsky/devlop_scope/scope-ml/hpc_files/dnn_inference/logs/run_inference_dnn_submit_%A_%a.out
+#SBATCH --error=/expanse/lustre/projects/umn141/dwarshofsky/devlop_scope/scope-ml/hpc_files/dnn_inference/logs/run_inference_dnn_submit_%A_%a.err
 #SBATCH -p shared
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
@@ -12,4 +12,4 @@
 module purge
 module add slurm
 source activate scope-env
-run-inference-job-submission --dirname dnn_inference --user dwarshofsky --algorithm dnn
+run-inference-job-submission --dirname hpc_files/dnn_inference --user dwarshofsky --algorithm dnn

@@ -44,6 +44,7 @@ period_suffix_config = config['features']['info']['period_suffix']
 
 # Load training set
 trainingSetPath = BASE_DIR / config['training']['dataset']
+print(trainingSetPath)
 if trainingSetPath.suffix == '.parquet':
     try:
         TRAINING_SET = read_parquet(trainingSetPath)
@@ -646,6 +647,7 @@ def run_inference(
 
     if write_csv:
         preds_df.to_csv(f'{filename}.csv', index=False)
+        print(f'Preds saved to {filename}.csv')
 
     if verbose:
         print("Predictions:\n", preds_df)
