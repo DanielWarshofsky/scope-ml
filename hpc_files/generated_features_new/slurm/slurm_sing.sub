@@ -5,12 +5,12 @@
 #SBATCH -p gpu-shared
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 9
-#SBATCH --gpus 1
+#SBATCH --gpus 3
 #SBATCH --mem 91G
 #SBATCH --time=48:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=warsh029@umn.edu
-#SBATCH -A umn131
+#SBATCH -A umn141
 module purge
 module add gpu/0.15.4
 module add cuda

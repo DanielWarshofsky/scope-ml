@@ -124,11 +124,13 @@ def xmatch(
                         ra_match, dec_match = entry['coordinates']['radec_geojson'][
                             'coordinates'
                         ]
-                        ras += [ra_match]
+                        ras += [
+                            ra_match + 180
+                        ]  # do the correction here instead of next step to avoid list errors
                         decs += [dec_match]
 
                     match_SC = SkyCoord(
-                        ras + 180.0,
+                        ras,
                         decs,
                         unit=[
                             'deg',

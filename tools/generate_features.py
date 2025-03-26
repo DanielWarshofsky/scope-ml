@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import scope
 import argparse
 import pathlib
@@ -29,6 +28,7 @@ import json
 from joblib import Parallel, delayed
 from scipy.stats import circmean
 import time
+from concurrent.futures import ProcessPoolExecutor
 
 
 BASE_DIR = pathlib.Path.cwd()
@@ -76,6 +76,13 @@ if path_to_features is not None:
     BASE_DIR = pathlib.Path(path_to_features)
 
 kowalski_instances = Kowalski(timeout=timeout, instances=instances)
+
+
+def gpu_select(alg, tme_collection, freqs, gpu_id='0', **kwargs):
+    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_id
+    print(os.environ['CUDA_VISIBLE_DEVICES'])
+    res = periodsearch.find_periods(alg, tme_collection, freqs, kwargs)
+    return res
 
 
 def drop_close_bright_stars(
@@ -835,6 +842,7 @@ def generate_features(
 
         df = 1.0 / (samples_per_peak * baseline)
         nf = int(np.ceil((fmax - fmin) / df))
+        print(f'Number of freq {nf}')
         freqs = fmin + df * np.arange(nf)
 
         # Define terrestrial frequencies to remove
@@ -921,13 +929,19 @@ def generate_features(
             print(
                 f'Running {len(period_algorithms)} period algorithms for {len(feature_dict)} sources in batches of {period_batch_size}...'
             )
-            for i in range(0, n_iterations):
+            time_period = time.time()
+            pp = ProcessPoolExecutor(max_workers=3)
+            for i in range(
+                0, n_iterations
+            ):  # invert loop, can not take advantage of data already being on gpu in current implementation
+                # should run longest alg first
                 print(f"Iteration {i+1} of {n_iterations}...")
 
+                futures = []
                 for algorithm in period_algorithms:
                     print(f'Running {algorithm} algorithm:')
-                    # Iterate over algorithms
-                    periods, significances, pdots = periodsearch.find_periods(
+                    f = pp.submit(
+                        gpu_select,
                         algorithm,
                         tme_collection[
                             i
@@ -935,7 +949,7 @@ def generate_features(
                                 n_sources, (i + 1) * period_batch_size
                             )
                         ],
-                        freqs,
+                        freqs_no_terrestrial,
                         doGPU=doGPU,
                         doCPU=doCPU,
                         doRemoveTerrestrial=doRemoveTerrestrial,
@@ -945,38 +959,33 @@ def generate_features(
                         phase_bins=20,
                         mag_bins=10,
                         Ncore=Ncore,
+                        gpu_id=str(i % 3),
                     )
-
+                    futures.append(f)
+                for f, alg in zip(
+                    futures, period_algorithms
+                ):  # now loop over the futures in the same order the serial code would have
+                    periods, significances, pdots = f.result()
                     if not do_nested_algorithms:
-                        all_periods[algorithm] = np.concatenate(
-                            [all_periods[algorithm], periods]
-                        )
+                        all_periods[alg] = np.concatenate([all_periods[alg], periods])
 
                     else:
                         p_vals = [p['period'] for p in periods]
                         p_stats = [p['data'] for p in periods]
-                        all_periods[algorithm] = np.concatenate(
-                            [all_periods[algorithm], p_vals]
-                        )
-                        if (algorithm == 'ELS_periodogram') | (
-                            algorithm == 'LS_periodogram'
-                        ):
+                        all_periods[alg] = np.concatenate([all_periods[alg], p_vals])
+                        if (alg == 'ELS_periodogram') | (alg == 'LS_periodogram'):
                             # Maximum statistic is best for ELS/LS; select top N
                             topN_significance_indices_ELS = [
                                 np.argsort(ps.flatten())[::-1][:top_n_periods]
                                 for ps in p_stats
                             ]
-                        elif (algorithm == 'ECE_periodogram') | (
-                            algorithm == 'CE_periodogram'
-                        ):
+                        elif (alg == 'ECE_periodogram') | (alg == 'CE_periodogram'):
                             # Minimum statistic is best for ECE/CE; select top N
                             topN_significance_indices_ECE = [
                                 np.argsort(ps.flatten())[:top_n_periods]
                                 for ps in p_stats
                             ]
-                        elif (algorithm == 'EAOV_periodogram') | (
-                            algorithm == 'AOV_periodogram'
-                        ):
+                        elif (alg == 'EAOV_periodogram') | (alg == 'AOV_periodogram'):
                             ELS_ECE_top_indices = np.concatenate(
                                 [
                                     topN_significance_indices_ELS,
@@ -1022,10 +1031,10 @@ def generate_features(
                                 ]
                             )
 
-                    all_significances[algorithm] = np.concatenate(
-                        [all_significances[algorithm], significances]
+                    all_significances[alg] = np.concatenate(
+                        [all_significances[alg], significances]
                     )
-                    all_pdots[algorithm] = np.concatenate([all_pdots[algorithm], pdots])
+                    all_pdots[alg] = np.concatenate([all_pdots[alg], pdots])
 
             period_dict = all_periods
             significance_dict = all_significances
@@ -1033,7 +1042,7 @@ def generate_features(
 
             if do_nested_algorithms:
                 period_algorithms += [nested_key]
-
+            print(f'Time to do only period finding {time.time()-time_period}')
         else:
             warnings.warn("Skipping period finding; setting all periods to 1.0 d.")
             # Default periods 1.0 d
