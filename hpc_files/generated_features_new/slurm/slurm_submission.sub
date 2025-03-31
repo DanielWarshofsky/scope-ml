@@ -12,4 +12,4 @@
 module purge
 module add slurm
 source activate scope-dev
-generate-features-job-submission --dirname generated_features_new --filename gen_features --doSubmit --max-instances 18 --wait-time-minutes 1.0 --user dwarshofsky --runParallel --submit-interval-minutes 1.0 --log_dir hpc_files/generated_features_new/logs --reset-running
+generate-features-job-submission --dirname generated_features_new --filename gen_features --doSubmit --max-instances 8 --wait-time-minutes 1.0 --user dwarshofsky --runParallel --submit-interval-minutes 1.0 --log_dir hpc_files/generated_features_new/logs --reset-running
