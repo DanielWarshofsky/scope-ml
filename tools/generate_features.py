@@ -509,6 +509,18 @@ def generate_features(
     * - specified in config.yaml
     """
     t0 = time.time()
+    # define times
+    total_dmdt = -1
+    total_alerts = -1
+    total_basic_features = -1
+    total_dmdt = -1
+    total_drop_close = -1
+    total_foureir = -1
+    total_get_ids = -1
+    total_get_lc = -1
+    total_period = -1
+    total_write = -1
+    total_xmatch = -1
 
     # Get code version and current date/time for metadata
     code_version = scope.__version__
@@ -552,7 +564,8 @@ def generate_features(
             get_coords=True,
             stop_early=stop_early,
         )
-        print(f'Time to get IDs: {time.time()-t_get_ids}')
+        total_get_ids = time.time() - t_get_ids
+        print(f'Time to get IDs: {total_get_ids}')
         if not skipCloseSources:
             # Each index of lst corresponds to a different ccd/quad combo
             t_drop_close = time.time()
@@ -564,7 +577,8 @@ def generate_features(
                 limit=limit,
                 Ncore=Ncore,
             )
-            print(f'Time to drop close stars: {time.time()-t_drop_close}')
+            total_drop_close = time.time() - t_drop_close
+            print(f'Time to drop close stars: {total_drop_close}')
         else:
             feature_gen_source_dict = lst[0]
     else:
@@ -684,7 +698,8 @@ def generate_features(
         max_timestamp_hjd=max_timestamp_hjd,
         min_timestamp_hjd=min_timestamp_hjd,
     )
-    print(f'Time to get lcs: {time.time()-t_get_lc}')
+    total_get_lc = time.time() - t_get_lc
+    print(f'Time to get lcs: {total_get_lc}')
     # Remake feature_gen_source_dict if some light curves are missing
     lc_ids = [lc['_id'] for lc in lcs]
     if len(lc_ids) != len(feature_gen_ids):
@@ -702,7 +717,8 @@ def generate_features(
         limit=limit,
         Ncore=Ncore,
     )
-    print(f'Time to get alerts: {time.time()-t_alert}')
+    total_alerts = time.time() - t_alert
+    print(f'Time to get alerts: {total_alerts}')
     for _id in feature_dict.keys():
         feature_dict[_id]['n_ztf_alerts'] = alert_stats_dct[_id]['n_ztf_alerts']
         feature_dict[_id]['mean_ztf_alert_braai'] = alert_stats_dct[_id][
@@ -719,12 +735,15 @@ def generate_features(
         limit=limit,
         Ncore=Ncore,
     )
-    print(f'Time to xmatch: {time.time()-t_xmatch}')
+    total_xmatch = time.time() - t_xmatch
+    print(f'Time to xmatch: {total_xmatch}')
 
     print('Analyzing lightcuves and computing basic features...')
+    t_basic_features = time.time()
     # Start by dropping flagged points
     count = 0
     baseline = 0
+    max_lc_size = 0  # used this value to assign batch size
     keep_id_list = []
     tme_collection = []
     tme_dict = {}
@@ -762,6 +781,9 @@ def generate_features(
                 new_baseline = max(tt) - min(tt)
                 if new_baseline > baseline:
                     baseline = new_baseline
+                # determine the largest size of a lc
+                if len(tt) > max_lc_size:
+                    max_lc_size = len(tt)
 
                 new_tme_arr = np.array([tt, mm, ee])
                 tme_collection += [new_tme_arr]
@@ -798,7 +820,8 @@ def generate_features(
             if _id in keep_id_list:
                 keep_id_list.remove(_id)
                 tme_dict.pop(_id)
-
+    # not sure this is being used the best way, want to max out Ncore but not kill kowalski
+    # write using concurent futures?
     basicStats = Parallel(n_jobs=Ncore)(
         delayed(lcstats.calc_basic_stats)(id, vals['tme'])
         for id, vals in tme_dict.items()
@@ -830,7 +853,8 @@ def generate_features(
         feature_dict[_id]['stetson_k'] = statvals[19]
         feature_dict[_id]['ad'] = statvals[20]
         feature_dict[_id]['sw'] = statvals[21]
-
+    total_basic_features = time.time() - t_basic_features
+    print(f"Basic stats time :{total_basic_features}")
     if baseline > 0:
         # Define frequency grid using largest LC time baseline
         if doScaleMinPeriod:
@@ -1042,7 +1066,8 @@ def generate_features(
 
             if do_nested_algorithms:
                 period_algorithms += [nested_key]
-            print(f'Time to do only period finding {time.time()-time_period}')
+            total_period = time.time() - time_period
+            print(f'Time to do only period finding {total_period}')
         else:
             warnings.warn("Skipping period finding; setting all periods to 1.0 d.")
             # Default periods 1.0 d
@@ -1072,12 +1097,14 @@ def generate_features(
                 feature_dict[_id][f'pdot_{algorithm_name}'] = pdot
 
         print(f'Computing Fourier stats for {len(period_dict)} algorithms...')
+        time_fourier = time.time()
         for algorithm in period_algorithms:
             if algorithm not in ["ELS_ECE_EAOV", "LS_CE_AOV"]:
                 algorithm_name = algorithm.split('_')[0]
             else:
                 algorithm_name = algorithm
             print(f'- Algorithm: {algorithm}')
+            # Does this do computations in parallel the best?
             fourierStats = Parallel(n_jobs=Ncore)(
                 delayed(lcstats.calc_fourier_stats)(
                     id, vals['tme'], vals[f'period_{algorithm_name}']
@@ -1103,8 +1130,11 @@ def generate_features(
                 feature_dict[_id][f'f1_relphi3_{algorithm_name}'] = statvals[11]
                 feature_dict[_id][f'f1_relamp4_{algorithm_name}'] = statvals[12]
                 feature_dict[_id][f'f1_relphi4_{algorithm_name}'] = statvals[13]
-
+        total_foureir = time.time() - time_fourier
+        print(f"Time for Foureir: {total_foureir}")
         print('Computing dmdt histograms...')
+        # check parrel
+        time_dmdt = time.time()
         dmdt = Parallel(n_jobs=Ncore)(
             delayed(lcstats.compute_dmdt)(id, vals['tme'], dmdt_ints)
             for id, vals in tme_dict.items()
@@ -1116,7 +1146,8 @@ def generate_features(
             feature_dict[_id]['dmdt'] = dmdtvals.tolist()
 
         feature_df = pd.DataFrame.from_dict(feature_dict, orient='index')
-
+        total_dmdt = time.time() - time_dmdt
+        print(f'dmdt time : {total_dmdt}')
         # Rename index column to '_id' and reset index
         feature_df.index.set_names('_id', inplace=True)
         feature_df.reset_index(inplace=True)
@@ -1145,6 +1176,7 @@ def generate_features(
     feature_df.attrs['Gaia_catalog'] = gaia_catalog
 
     # Write results
+    time_write = time.time()
     if not doNotSave:
         if not doSpecificIDs:
             filename += f"_field_{field}_ccd_{ccd}_quad_{quad}"
@@ -1208,9 +1240,21 @@ def generate_features(
 
     else:
         print(f"Generated features for {len(feature_df)} sources.")
-
+    total_write = time.time() - time_write
+    print(f'Write time: {total_write}')
     t1 = time.time()
     print(f"Finished running in {t1 - t0} seconds.")
+    print('Section  time break down')
+    print(f'total_alerts : {total_alerts}')
+    print(f'total_basic_features : {total_basic_features}')
+    print(f'total_dmdt : {total_dmdt}')
+    print(f'total_drop_close : {total_drop_close}')
+    print(f'total_foureir : {total_foureir}')
+    print(f'total_get_ids : {total_get_ids}')
+    print(f'total_get_lc : {total_get_lc}')
+    print(f'total_period : {total_period}')
+    print(f'total_write : {total_write}')
+    print(f'total_xmatch : {total_xmatch}')
 
     return feature_df
 
