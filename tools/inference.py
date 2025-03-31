@@ -17,6 +17,7 @@ from scope.utils import (
     impute_features,
     get_feature_stats,
     parse_load_config,
+    NoFeatures,
 )
 from scope.xgb import XGB
 from datetime import datetime
@@ -435,17 +436,21 @@ def run_inference(
 
         # Impute missing data and flag source ids containing missing values
         make_missing_dict(source_ids)
-        features = clean_data(
-            features,
-            feature_names,
-            field,
-            ccd,
-            quad,
-            flag_ids,
-            whole_field,
-            algorithm=algorithm,
-            period_suffix=period_suffix,
-        )
+        try:
+            features = clean_data(
+                features,
+                feature_names,
+                field,
+                ccd,
+                quad,
+                flag_ids,
+                whole_field,
+                algorithm=algorithm,
+                period_suffix=period_suffix,
+            )
+        except NoFeatures:
+            print('There were no features to run inferance on')
+            continue
 
         # Get feature stats using training set for scaling consistency
         if isinstance(trainingSet, str):

@@ -46,6 +46,10 @@ from pprint import pprint
 BASE_DIR = pathlib.Path.cwd()
 
 
+class NoFeatures(Exception):
+    pass
+
+
 def load_config(config_path: Union[str, pathlib.Path] = "config.yaml"):
     """
     Load config and secrets
@@ -731,7 +735,9 @@ def impute_features(
     # Fit KNNImputer to training set
     imp = KNNImputer(n_neighbors=n_neighbors)
     imp.set_output(transform="pandas")
-
+    # Handel empty features
+    if len(referenceSet[feature_list_regression]) == 0:
+        raise NoFeatures
     fit_feats = imp.fit(referenceSet[feature_list_regression])
     imputed_feats = fit_feats.transform(features_df[feature_list_regression])
 

@@ -65,8 +65,8 @@ def filter_completed(fields, algorithm):
     return fields_copy
 
 
-def run_job(field, subfile):
-    sbatchstr = f"sbatch --export=FID={field} {subfile}"
+def run_job(field, subfile, alg):
+    sbatchstr = f"sbatch --export=FID={field} --job-name='field_{field}_{alg}_inference'  {subfile}"
     print(sbatchstr)
     os.system(sbatchstr)
 
@@ -105,7 +105,7 @@ def main():
 
     for field in fields_remaining:
         # Only run jobs from tags_remaining_to_run list
-        run_job(field, subfile)
+        run_job(field, subfile, algorithm)
 
     os.system(f"squeue -u {args.user}")
 
