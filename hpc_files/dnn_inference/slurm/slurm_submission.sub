@@ -11,5 +11,5 @@
 #SBATCH --mail-user=warsh029@umn.edu
 module purge
 module add slurm
-source activate scope-env
+source activate scope-dev
 run-inference-job-submission --dirname hpc_files/dnn_inference --user dwarshofsky --algorithm dnn

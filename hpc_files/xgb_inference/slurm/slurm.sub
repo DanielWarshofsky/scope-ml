@@ -13,4 +13,5 @@
 #SBATCH -A umn131
 module purge
 source activate scope-dev
+echo Field ${FID}
 ./hpc_files/get_all_preds_xgb_DR16.sh $FID
