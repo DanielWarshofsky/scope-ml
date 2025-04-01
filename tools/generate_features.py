@@ -187,7 +187,7 @@ def drop_close_bright_stars(
         print(f'Querying {catalog} catalog in batches...')
 
         for i in range(0, n_iterations):
-            print(f"Iteration {i+1} of {n_iterations}...")
+            print(f"Iteration {i + 1} of {n_iterations}...")
             id_slice = [x for x in id_dct.keys()][
                 i * limit : min(n_sources, (i + 1) * limit)
             ]
@@ -675,7 +675,7 @@ def generate_features(
                 save=not doNotSave,
                 save_directory=dirname,
             )
-            print(f'Time to drop close stars: {time.time()-t_drop_close}')
+            print(f'Time to drop close stars: {time.time() - t_drop_close}')
 
         else:
             feature_gen_source_dict = {
@@ -957,12 +957,12 @@ def generate_features(
             )
             time_period = time.time()
             pp = ProcessPoolExecutor(max_workers=num_gpu)
-            topN_significance_indices_ELS=[]
-            topN_significance_indices_ECE=[]
+            topN_significance_indices_ELS = []
+            topN_significance_indices_ECE = []
             for algorithm in period_algorithms:
                 print(f'Running {algorithm}')
-                alg_futures=[]
-                for i in range(0,n_iterations):
+                alg_futures = []
+                for i in range(0, n_iterations):
                     f = pp.submit(
                         gpu_select,
                         algorithm,
@@ -984,48 +984,105 @@ def generate_features(
                         Ncore=Ncore,
                         gpu_id=str(i % num_gpu),
                     )
+
                     alg_futures.append(f)
 
-                for i in range(0,n_iterations):
+                for i in range(0, n_iterations):
                     print(f'Look at batch {i} for alg {algorithm}')
-                    periods, significances, pdots = alg_futures[i].result() #D:maybe not the best way to load, could be some waiting
-                    #Add full data to final dict
-                    all_periods[algorithm] = np.concatenate([all_periods[algorithm], periods])
-                    all_significances[algorithm] = np.concatenate([all_significances[algorithm], significances])
+                    periods, significances, pdots = alg_futures[
+                        i
+                    ].result()  # D:maybe not the best way to load, could be some waiting
+                    # Add full data to final dict
+                    all_periods[algorithm] = np.concatenate(
+                        [all_periods[algorithm], periods]
+                    )
+                    all_significances[algorithm] = np.concatenate(
+                        [all_significances[algorithm], significances]
+                    )
                     all_pdots[algorithm] = np.concatenate([all_pdots[algorithm], pdots])
                     if do_nested_algorithms:
-                        #extract the period finding data
-                        #p_vals = [p['period'] for p in periods]
+                        # extract the period finding data
+                        # p_vals = [p['period'] for p in periods]
                         p_stats = [p['data'] for p in periods]
-                        #add the values for all algs to the final dict
-                        #D: not needed in here
-                        #all_periods[algorithm] = np.concatenate([all_periods[algorithm], p_vals])
-                        match algorithm: #logic to sort the top N for the tie breaking AOV run
+                        # add the values for all algs to the final dict
+                        # D: not needed in here
+                        # all_periods[algorithm] = np.concatenate([all_periods[algorithm], p_vals])
+                        match algorithm:  # logic to sort the top N for the tie breaking AOV run
                             case 'ELS_periodogram' | 'LS_periodogram':
                                 # Maximum statistic is best for ELS/LS; select top N
-                                topN_significance_indices_ELS.append([np.argsort(p['data'].flatten())[::-1][:top_n_periods]for p in p_stats]) #D: Keep legacy for now
+                                topN_significance_indices_ELS.append(
+                                    [
+                                        np.argsort(p['data'].flatten())[::-1][
+                                            :top_n_periods
+                                        ]
+                                        for p in p_stats
+                                    ]
+                                )  # D: Keep legacy for now
 
                             case 'ECE_periodogram' | 'CE_periodogram':
                                 # Minimum statistic is best for ECE/CE; select top N
-                                topN_significance_indices_ECE.append([np.argsort(ps.flatten())[:top_n_periods]for ps in p_stats])
+                                topN_significance_indices_ECE.append(
+                                    [
+                                        np.argsort(ps.flatten())[:top_n_periods]
+                                        for ps in p_stats
+                                    ]
+                                )
 
-                            case 'EAOV_periodogram' | 'AOV_periodogram': #D: AOV must come LAST design flaw for now...
-                                #combine top indices from other algs and get unique ones
-                                top_combined_significance_indices=np.unique(topN_significance_indices_ELS[i],topN_significance_indices_ECE[i],axis=1)
+                            case (
+                                'EAOV_periodogram' | 'AOV_periodogram'
+                            ):  # D: AOV must come LAST design flaw for now...
+                                # combine top indices from other algs and get unique ones
+                                top_combined_significance_indices = np.unique(
+                                    topN_significance_indices_ELS[i],
+                                    topN_significance_indices_ECE[i],
+                                    axis=1,
+                                )
                                 # select only INDEX of best score from AOV of the top indices from LS and CE
-                                best_index_of_indices = [np.argmax(p_stats[j][top_combined_significance_indices[j]]) for j in range(len(p_stats))]
-                                #Get the index on the periods 
-                                best_indices = [top_combined_significance_indices[j][best_index_of_indices[j]]for j in range(len(top_combined_significance_indices))]
+                                best_index_of_indices = [
+                                    np.argmax(
+                                        p_stats[j][top_combined_significance_indices[j]]
+                                    )
+                                    for j in range(len(p_stats))
+                                ]
+                                # Get the index on the periods
+                                best_indices = [
+                                    top_combined_significance_indices[j][
+                                        best_index_of_indices[j]
+                                    ]
+                                    for j in range(
+                                        len(top_combined_significance_indices)
+                                    )
+                                ]
 
-                                #Concat best single period for whole batch in order
-                                all_periods[nested_key] = np.concatenate([all_periods[nested_key],1 / freqs_no_terrestrial[best_indices],])
-                                #Concat associated significance in order
-                                all_significances[nested_key] = np.concatenate([all_significances[nested_key],[p_stats[j].flatten()[best_indices[j]]for j in range(len(best_indices))],])
-                                #D: Pdots is wrong here but SCoPe was trained like this so I leave it wrong. Also Pdot is not used
-                                all_pdots[nested_key] = np.concatenate([all_pdots[nested_key],pdots,])
+                                # Concat best single period for whole batch in order
+                                all_periods[nested_key] = np.concatenate(
+                                    [
+                                        all_periods[nested_key],
+                                        1 / freqs_no_terrestrial[best_indices],
+                                    ]
+                                )
+                                # Concat associated significance in order
+                                all_significances[nested_key] = np.concatenate(
+                                    [
+                                        all_significances[nested_key],
+                                        [
+                                            p_stats[j].flatten()[best_indices[j]]
+                                            for j in range(len(best_indices))
+                                        ],
+                                    ]
+                                )
+                                # D: Pdots is wrong here but SCoPe was trained like this so I leave it wrong. Also Pdot is not used
+                                all_pdots[nested_key] = np.concatenate(
+                                    [
+                                        all_pdots[nested_key],
+                                        pdots,
+                                    ]
+                                )
                             case _:
-                                print(f'{algorithm} not recognized, How did the code get this far?')
-            #save a little mem, each array is ~50*num_lcs ints could be as large as 1mill
+                                print(
+                                    f'{algorithm} not recognized, How did the code get this far?'
+                                )
+            # save a little mem, each array is ~50*num_lcs ints could be as large as 1mill
             del topN_significance_indices_ELS
             del topN_significance_indices_ECE
             period_dict = all_periods
