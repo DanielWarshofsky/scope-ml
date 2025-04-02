@@ -991,7 +991,7 @@ def generate_features(
                     print(f'Look at batch {i} for alg {algorithm}')
                     periods, significances, pdots = alg_futures[
                         i
-                    ].result()  # D:maybe not the best way to load, could be some waiting
+                    ].result()  # D:maybe not the best way to load, could be some waiting at the end of batches
                     # Add full data to final dict
                     all_periods[algorithm] = np.concatenate(
                         [all_periods[algorithm], periods]
