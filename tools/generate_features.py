@@ -957,12 +957,10 @@ def generate_features(
             )
             time_period = time.time()
             pp = ProcessPoolExecutor(max_workers=num_gpu)
-            topN_significance_indices_ELS = []
-            topN_significance_indices_ECE = []
-            for algorithm in period_algorithms:
-                print(f'Running {algorithm}')
+            all_futures = []
+            for i in range(0, n_iterations):
                 alg_futures = []
-                for i in range(0, n_iterations):
+                for algorithm in period_algorithms:
                     f = pp.submit(
                         gpu_select,
                         algorithm,
@@ -984,15 +982,16 @@ def generate_features(
                         Ncore=Ncore,
                         gpu_id=str(i % num_gpu),
                     )
-
-                    alg_futures.append(f)
-
-                for i in range(0, n_iterations):
-                    print(f'Look at batch {i} for alg {algorithm}')
-                    periods, significances, pdots = alg_futures[
-                        i
-                    ].result()  # D:maybe not the best way to load, could be some waiting at the end of batches
-                    # Add full data to final dict
+                alg_futures.append(f)
+            all_futures.append(alg_futures)
+            # D: Unpack the futures
+            for f_batch in all_futures:
+                topN_significance_indices_ELS = []
+                topN_significance_indices_ECE = []
+                for alg_future, algorithm in zip(f_batch, period_algorithms):
+                    # get the info for one batch for one alg
+                    periods, significances, pdots = alg_future.restult()
+                    # save data into final dict
                     all_periods[algorithm] = np.concatenate(
                         [all_periods[algorithm], periods]
                     )
@@ -1000,41 +999,33 @@ def generate_features(
                         [all_significances[algorithm], significances]
                     )
                     all_pdots[algorithm] = np.concatenate([all_pdots[algorithm], pdots])
-                    if do_nested_algorithms:
-                        # extract the period finding data
-                        # p_vals = [p['period'] for p in periods]
+                    if (
+                        do_nested_algorithms
+                    ):  # logic to sort the top N for the tie breaking AOV run
                         p_stats = [p['data'] for p in periods]
-                        # add the values for all algs to the final dict
-                        # D: not needed in here
-                        # all_periods[algorithm] = np.concatenate([all_periods[algorithm], p_vals])
-                        match algorithm:  # logic to sort the top N for the tie breaking AOV run
+                        match algorithm:
                             case 'ELS_periodogram' | 'LS_periodogram':
                                 # Maximum statistic is best for ELS/LS; select top N
-                                topN_significance_indices_ELS.append(
-                                    [
-                                        np.argsort(p['data'].flatten())[::-1][
-                                            :top_n_periods
-                                        ]
-                                        for p in p_stats
+                                topN_significance_indices_ELS = [
+                                    np.argsort(p['data'].flatten())[::-1][
+                                        :top_n_periods
                                     ]
-                                )  # D: Keep legacy for now
-
+                                    for p in p_stats
+                                ]
                             case 'ECE_periodogram' | 'CE_periodogram':
                                 # Minimum statistic is best for ECE/CE; select top N
-                                topN_significance_indices_ECE.append(
-                                    [
-                                        np.argsort(ps.flatten())[:top_n_periods]
-                                        for ps in p_stats
-                                    ]
-                                )
+                                topN_significance_indices_ECE = [
+                                    np.argsort(ps.flatten())[:top_n_periods]
+                                    for ps in p_stats
+                                ]
 
                             case (
                                 'EAOV_periodogram' | 'AOV_periodogram'
                             ):  # D: AOV must come LAST design flaw for now...
                                 # combine top indices from other algs and get unique ones
                                 top_combined_significance_indices = np.unique(
-                                    topN_significance_indices_ELS[i],
-                                    topN_significance_indices_ECE[i],
+                                    topN_significance_indices_ELS,
+                                    topN_significance_indices_ECE,
                                     axis=1,
                                 )
                                 # select only INDEX of best score from AOV of the top indices from LS and CE
@@ -1082,9 +1073,7 @@ def generate_features(
                                 print(
                                     f'{algorithm} not recognized, How did the code get this far?'
                                 )
-            # save a little mem, each array is ~50*num_lcs ints could be as large as 1mill
-            del topN_significance_indices_ELS
-            del topN_significance_indices_ECE
+
             period_dict = all_periods
             significance_dict = all_significances
             pdot_dict = all_pdots
@@ -1513,4 +1502,5 @@ def main():
         max_freq=args.max_freq,
         fg_dataset=args.fg_dataset,
         max_timestamp_hjd=args.max_timestamp_hjd,
+        num_gpu=args.num_gpu,
     )
