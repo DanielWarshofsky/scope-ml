@@ -177,7 +177,8 @@ def find_periods(
                     lightcurve = (tt, mag_array, magerr_array)
                 else:
                     idx = np.argsort(lightcurve[0])
-                    tmin = np.min(lightcurve[0])
+                    tmin = lightcurve[0][idx[0]]
+                    #tmin = np.min(lightcurve[0])
                     lightcurve = (
                         lightcurve[0][idx] - tmin,
                         lightcurve[1][idx],
@@ -186,7 +187,8 @@ def find_periods(
 
                 time_stack.append(lightcurve[0].astype(np.float32))
                 lc = lightcurve[1]
-                lc = (lc - np.min(lc)) / (np.max(lc) - np.min(lc))
+                lc_min=np.min(lc)
+                lc = (lc - lc_min) / (np.max(lc) - lc_min)
                 mag_stack.append(lc.astype(np.float32))
 
                 if len(idx) > maxn:
@@ -217,29 +219,35 @@ def find_periods(
                 data_out = ls.calc(
                     time_stack, mag_stack, periods, pdots_to_test, output='periodogram'
                 )
-
             for ii, stat in enumerate(data_out):
+                #just cut this and compute this outside of the gpu wraping code
+                #this is fast, only like 1 sec per batch, just leave for now
                 if algorithm.split("_")[0] == "ECE":
                     significance = np.abs(
                         np.mean(stat.data) - np.min(stat.data)
                     ) / np.std(stat.data)
+                    #expesnsive and redundant since the full periodigrame is returned
                     period = periods[np.argmin(stat.data)]
+                    #period = np.nan
                 elif algorithm.split("_")[0] == "EAOV":
                     significance = np.abs(
                         np.mean(stat.data) - np.max(stat.data)
                     ) / np.std(stat.data)
+                    #expesnsive and redundant since the full periodigrame is returned
                     period = periods[np.argmax(stat.data)]
+                    #period = np.nan
                 elif algorithm.split("_")[0] == "ELS":
                     significance = np.abs(
                         np.mean(stat.data) - np.max(stat.data)
                     ) / np.std(stat.data)
+                    #expesnsive and redundant since the full periodigrame is returned
                     period = periods[np.argmax(stat.data)]
+                    #period = np.nan
 
                 if np.isnan(significance):
                     warnings.warn(
                         "Oops... significance  is nan... something went wrong"
                     )
-
                 periods_best.append({'period': period, 'data': stat.data})
                 pdots[ii] = pdots_to_test[0]
                 significances[ii] = significance
